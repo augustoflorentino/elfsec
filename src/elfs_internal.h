@@ -23,6 +23,10 @@
 #define ELFS_PT_DYNAMIC 2
 #define ELFS_PT_INTERP 3
 #define ELFS_PT_NOTE 4
+#define ELFS_PT_PHDR 6
+#define ELFS_PT_TLS 7
+#define ELFS_PT_GNU_EH_FRAME 0x6474e550u
+#define ELFS_PT_GNU_PROPERTY 0x6474e553u
 #define ELFS_PT_GNU_STACK 0x6474e551u
 #define ELFS_PT_GNU_RELRO 0x6474e552u
 #define ELFS_PF_X 1u
@@ -115,6 +119,8 @@ typedef struct elfs_sections {
     uint32_t kmod_index;
     int kernel;
     uint32_t kernel_index;
+    int uboot;
+    uint32_t uboot_index;
 } elfs_sections_t;
 
 struct elfs_elf {

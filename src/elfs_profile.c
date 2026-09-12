@@ -12,6 +12,7 @@ typedef struct elfs_segments {
     int has_relro;
     uint64_t relro_index;
     uint64_t loads;
+    uint64_t userland;
 } elfs_segments_t;
 
 static void elfs_set_ev(elfs_evidence_t *ev, uint32_t source, uint64_t index, uint64_t offset)
@@ -38,10 +39,18 @@ static void elfs_dynamic_ev(const elfs_elf_t *elf, elfs_evidence_t *ev, int slot
     elfs_set_ev(ev, ELFS_SRC_DYNAMIC, index, elf->dyn_offset + index * (elf->is64 ? 16 : 8));
 }
 
+static int elfs_userland_segment(uint32_t type)
+{
+    return type == ELFS_PT_PHDR || type == ELFS_PT_TLS || type == ELFS_PT_NOTE || type == ELFS_PT_GNU_RELRO ||
+           type == ELFS_PT_GNU_EH_FRAME || type == ELFS_PT_GNU_PROPERTY;
+}
+
 static void elfs_note_segment(elfs_segments_t *s, const elfs_phdr_t *ph, uint64_t i)
 {
     if (ph->type == ELFS_PT_LOAD)
         s->loads++;
+    if (elfs_userland_segment(ph->type))
+        s->userland++;
     if (ph->type == ELFS_PT_INTERP && !s->has_interp) {
         s->has_interp = 1;
         s->interp_index = i;
@@ -137,11 +146,18 @@ static uint32_t elfs_kind_dyn(const elfs_elf_t *elf, const elfs_segments_t *s, e
     return ELFS_KIND_SHARED;
 }
 
-static int elfs_is_bare(const elfs_elf_t *elf, const elfs_segments_t *s)
+static int elfs_is_bare(const elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
 {
     uint64_t upper = elf->is64 ? (uint64_t)1 << 63 : (uint64_t)1 << 31;
 
-    return !s->has_stack && (s->loads <= 1 || elf->profile.entry >= upper);
+    if (elf->sections.uboot) {
+        elfs_section_ev(elf, ev, elf->sections.uboot_index);
+        return 1;
+    }
+    elfs_set_ev(ev, ELFS_SRC_NONE, 0, 0);
+    if (!s->has_stack && (s->loads <= 1 || elf->profile.entry >= upper))
+        return 1;
+    return s->userland == 0;
 }
 
 static uint32_t elfs_kind_exec(const elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
@@ -150,12 +166,19 @@ static uint32_t elfs_kind_exec(const elfs_elf_t *elf, const elfs_segments_t *s, 
         elfs_segment_ev(elf, ev, s->interp_index);
         return ELFS_KIND_EXEC;
     }
-    if (elfs_is_bare(elf, s)) {
-        elfs_set_ev(ev, ELFS_SRC_NONE, 0, 0);
-        return ELFS_KIND_BARE;
-    }
     elfs_set_ev(ev, ELFS_SRC_HEADER, 0, 0);
     return ELFS_KIND_EXEC;
+}
+
+static uint32_t elfs_kind_loadable(const elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
+{
+    int alone = !s->has_interp && elf->needed_tags == 0 && !elf->tags[ELFS_TAG_SONAME].present;
+
+    if (!s->has_interp && elfs_is_kernel(elf, ev))
+        return ELFS_KIND_KERNEL;
+    if (alone && elfs_is_bare(elf, s, ev))
+        return ELFS_KIND_BARE;
+    return elf->type == ELFS_ET_DYN ? elfs_kind_dyn(elf, s, ev) : elfs_kind_exec(elf, s, ev);
 }
 
 static uint32_t elfs_classify(const elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
@@ -171,9 +194,7 @@ static uint32_t elfs_classify(const elfs_elf_t *elf, const elfs_segments_t *s, e
         return ELFS_KIND_KMOD;
     case ELFS_ET_EXEC:
     case ELFS_ET_DYN:
-        if (!s->has_interp && elfs_is_kernel(elf, ev))
-            return ELFS_KIND_KERNEL;
-        return elf->type == ELFS_ET_DYN ? elfs_kind_dyn(elf, s, ev) : elfs_kind_exec(elf, s, ev);
+        return elfs_kind_loadable(elf, s, ev);
     default:
         return ELFS_KIND_UNKNOWN;
     }

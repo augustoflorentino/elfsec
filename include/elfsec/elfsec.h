@@ -128,7 +128,7 @@ typedef struct elfs_profile {
     uint32_t path_count;
     uint32_t path_flags;
     uint32_t warnings;
-    uint32_t reserved1;
+    uint32_t type;
     uint64_t entry;
     const char *interp;
     size_t interp_len;

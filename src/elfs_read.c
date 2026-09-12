@@ -50,6 +50,7 @@ static void elfs_read_header_fields(elfs_elf_t *elf)
     uint64_t w = elf->is64 ? 8 : 4;
 
     elf->type = elfs_u16(elf, 16);
+    elf->profile.type = elf->type;
     elf->profile.machine = elfs_u16(elf, 18);
     elf->profile.entry = elfs_word(elf, 24);
     elf->phoff = elfs_word(elf, 24 + w);
@@ -204,6 +205,11 @@ static int elfs_kmod_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32
     return elfs_name_is(elf, names, at, ".modinfo") || elfs_name_is(elf, names, at, ".gnu.linkonce.this_module");
 }
 
+static int elfs_uboot_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t at)
+{
+    return elfs_name_is(elf, names, at, "__u_boot_list") || elfs_name_is(elf, names, at, ".u_boot_list");
+}
+
 static void elfs_note_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t i, const elfs_shdr_t *sh)
 {
     elfs_sections_t *s = &elf->sections;
@@ -225,6 +231,10 @@ static void elfs_note_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint3
     if (!s->kernel && elfs_kernel_section(elf, names, sh->name)) {
         s->kernel = 1;
         s->kernel_index = i;
+    }
+    if (!s->uboot && elfs_uboot_section(elf, names, sh->name)) {
+        s->uboot = 1;
+        s->uboot_index = i;
     }
 }
 
