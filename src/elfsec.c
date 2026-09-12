@@ -1,17 +1,7 @@
-#include "elfsec/elfsec.h"
+#include "elfs_internal.h"
 
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-struct elfs_buf {
-    elfs_alloc_fn alloc_fn;
-    elfs_free_fn free_fn;
-    void *alloc_ctx;
-    unsigned char *data;
-    size_t len;
-    size_t cap;
-};
 
 static void *elfs_default_alloc(void *ctx, size_t size)
 {
@@ -25,104 +15,153 @@ static void elfs_default_free(void *ctx, void *ptr)
     free(ptr);
 }
 
-int elfs_buf_create(elfs_alloc_fn alloc_fn, elfs_free_fn free_fn, void *alloc_ctx, elfs_buf_t **out_buf)
+static int elfs_analyze(elfs_elf_t *elf)
 {
-    elfs_buf_t *buf;
+    int status = elfs_read_header(elf);
 
-    if (out_buf == NULL || (alloc_fn == NULL) != (free_fn == NULL))
+    if (status != ELFS_OK)
+        return status;
+    elfs_read_sections(elf);
+    elfs_read_dynamic(elf);
+    status = elfs_read_imports(elf);
+    if (status != ELFS_OK)
+        return status;
+    elfs_build_profile(elf);
+    return ELFS_OK;
+}
+
+int elfs_open(const unsigned char *data, size_t data_len, elfs_alloc_fn alloc_fn, elfs_free_fn free_fn,
+              void *alloc_ctx, elfs_elf_t **out_elf)
+{
+    elfs_elf_t *elf;
+    int status;
+
+    if (out_elf == NULL || (data == NULL && data_len > 0) || (alloc_fn == NULL) != (free_fn == NULL))
         return ELFS_ERR_ARG;
-    *out_buf = NULL;
+    *out_elf = NULL;
     if (alloc_fn == NULL) {
         alloc_fn = elfs_default_alloc;
         free_fn = elfs_default_free;
     }
-    buf = alloc_fn(alloc_ctx, sizeof(*buf));
-    if (buf == NULL)
+    elf = alloc_fn(alloc_ctx, sizeof(*elf));
+    if (elf == NULL)
         return ELFS_ERR_NOMEM;
-    memset(buf, 0, sizeof(*buf));
-    buf->alloc_fn = alloc_fn;
-    buf->free_fn = free_fn;
-    buf->alloc_ctx = alloc_ctx;
-    *out_buf = buf;
-    return ELFS_OK;
-}
-
-void elfs_buf_destroy(elfs_buf_t *buf)
-{
-    if (buf == NULL)
-        return;
-    if (buf->data != NULL)
-        buf->free_fn(buf->alloc_ctx, buf->data);
-    buf->free_fn(buf->alloc_ctx, buf);
-}
-
-static int elfs_buf_reserve(elfs_buf_t *buf, size_t needed)
-{
-    size_t cap;
-    unsigned char *data;
-
-    if (needed <= buf->cap)
-        return ELFS_OK;
-    cap = buf->cap ? buf->cap : 64;
-    while (cap < needed)
-        cap = cap > SIZE_MAX / 2 ? needed : cap * 2;
-    data = buf->alloc_fn(buf->alloc_ctx, cap);
-    if (data == NULL)
-        return ELFS_ERR_NOMEM;
-    if (buf->len > 0)
-        memcpy(data, buf->data, buf->len);
-    if (buf->data != NULL)
-        buf->free_fn(buf->alloc_ctx, buf->data);
-    buf->data = data;
-    buf->cap = cap;
-    return ELFS_OK;
-}
-
-int elfs_buf_append(elfs_buf_t *buf, const unsigned char *data, size_t data_len)
-{
-    int status;
-
-    if (buf == NULL || (data == NULL && data_len > 0))
-        return ELFS_ERR_ARG;
-    if (data_len == 0)
-        return ELFS_OK;
-    if (data_len > SIZE_MAX - buf->len)
-        return ELFS_ERR_NOMEM;
-    status = elfs_buf_reserve(buf, buf->len + data_len);
-    if (status != ELFS_OK)
+    memset(elf, 0, sizeof(*elf));
+    elf->alloc_fn = alloc_fn;
+    elf->free_fn = free_fn;
+    elf->alloc_ctx = alloc_ctx;
+    elf->data = data;
+    elf->len = data_len;
+    elf->read_left = ELFS_MAX_READ;
+    status = elfs_analyze(elf);
+    if (status != ELFS_OK) {
+        elfs_destroy(elf);
         return status;
-    memcpy(buf->data + buf->len, data, data_len);
-    buf->len += data_len;
-    return ELFS_OK;
-}
-
-size_t elfs_buf_len(const elfs_buf_t *buf)
-{
-    return buf ? buf->len : 0;
-}
-
-const unsigned char *elfs_buf_data(const elfs_buf_t *buf)
-{
-    return buf ? buf->data : NULL;
-}
-
-int elfs_buf_split(const elfs_buf_t *buf, unsigned char sep, elfs_piece_fn piece_fn, void *piece_ctx)
-{
-    size_t start = 0;
-    size_t i;
-
-    if (buf == NULL || piece_fn == NULL)
-        return ELFS_ERR_ARG;
-    for (i = 0; i < buf->len; i++) {
-        if (buf->data[i] != sep)
-            continue;
-        if (piece_fn(piece_ctx, buf->data + start, i - start) != 0)
-            return ELFS_OK;
-        start = i + 1;
     }
-    if (start < buf->len)
-        piece_fn(piece_ctx, buf->data + start, buf->len - start);
+    *out_elf = elf;
     return ELFS_OK;
+}
+
+void elfs_destroy(elfs_elf_t *elf)
+{
+    if (elf == NULL)
+        return;
+    if (elf->list != NULL)
+        elf->free_fn(elf->alloc_ctx, elf->list);
+    elf->free_fn(elf->alloc_ctx, elf);
+}
+
+int elfs_profile(const elfs_elf_t *elf, elfs_profile_t *out_profile)
+{
+    if (elf == NULL || out_profile == NULL)
+        return ELFS_ERR_ARG;
+    *out_profile = elf->profile;
+    return ELFS_OK;
+}
+
+int elfs_needed(const elfs_elf_t *elf, size_t i, const char **out_name, size_t *out_name_len)
+{
+    int64_t tag;
+    uint64_t value;
+
+    if (elf == NULL || out_name == NULL || out_name_len == NULL || i >= elf->profile.needed_count)
+        return ELFS_ERR_ARG;
+    elfs_dyn_entry(elf, elf->list[elf->needed_at + i], &tag, &value);
+    elfs_peek_string(elf, &elf->strtab, value, out_name, out_name_len);
+    return ELFS_OK;
+}
+
+int elfs_search_path(const elfs_elf_t *elf, size_t i, const char **out_path, size_t *out_path_len,
+                     uint32_t *out_flags)
+{
+    if (elf == NULL || out_path == NULL || out_path_len == NULL || out_flags == NULL ||
+        i >= elf->profile.path_count)
+        return ELFS_ERR_ARG;
+    return elfs_path_entry(elf, i, out_path, out_path_len, out_flags) ? ELFS_OK : ELFS_ERR_ARG;
+}
+
+int elfs_import(const elfs_elf_t *elf, size_t i, elfs_symbol_t *out_symbol)
+{
+    if (elf == NULL || out_symbol == NULL || i >= elf->profile.import_count)
+        return ELFS_ERR_ARG;
+    elfs_symbol_at(elf, elf->list[i], out_symbol);
+    return ELFS_OK;
+}
+
+int elfs_dangerous(const elfs_elf_t *elf, size_t i, elfs_symbol_t *out_symbol)
+{
+    if (elf == NULL || out_symbol == NULL || i >= elf->profile.danger_count)
+        return ELFS_ERR_ARG;
+    elfs_symbol_at(elf, elf->list[elf->danger_at + i], out_symbol);
+    return ELFS_OK;
+}
+
+const char *elfs_kind_name(uint32_t kind)
+{
+    static const char *const names[] = {"unknown", "executable", "pie", "shared library", "relocatable",
+                                        "kernel module", "kernel", "bare metal", "core dump"};
+
+    return kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "unknown";
+}
+
+const char *elfs_machine_name(uint32_t machine)
+{
+    switch (machine) {
+    case ELFS_EM_386:
+        return "x86";
+    case ELFS_EM_MIPS:
+        return "mips";
+    case ELFS_EM_PPC:
+        return "powerpc";
+    case ELFS_EM_PPC64:
+        return "powerpc64";
+    case ELFS_EM_S390:
+        return "s390";
+    case ELFS_EM_ARM:
+        return "arm";
+    case ELFS_EM_X86_64:
+        return "x86_64";
+    case ELFS_EM_AARCH64:
+        return "aarch64";
+    case ELFS_EM_RISCV:
+        return "riscv";
+    default:
+        return "other";
+    }
+}
+
+const char *elfs_danger_name(uint32_t danger)
+{
+    switch (danger) {
+    case ELFS_DANGER_UNBOUNDED:
+        return "unbounded write";
+    case ELFS_DANGER_COMMAND:
+        return "shell command";
+    case ELFS_DANGER_TEMPFILE:
+        return "predictable temporary file";
+    default:
+        return "none";
+    }
 }
 
 const char *elfs_strerror(int status)
@@ -134,6 +173,8 @@ const char *elfs_strerror(int status)
         return "invalid argument";
     case ELFS_ERR_NOMEM:
         return "out of memory";
+    case ELFS_ERR_FORMAT:
+        return "not an ELF image or unusable file header";
     default:
         return "unknown status";
     }

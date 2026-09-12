@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(elfsec VERSION 0.1.0 DESCRIPTION "DESCRICAO" LANGUAGES C)
+project(elfsec VERSION 0.1.0 DESCRIPTION "ELF hardening profile: protections, imports and dependencies read from memory" LANGUAGES C)
 
 option(ELFSEC_BUILD_TESTS "Build tests" OFF)
 option(ELFSEC_BUILD_EXAMPLES "Build examples" OFF)
@@ -8,7 +8,7 @@ option(ELFSEC_BUILD_FUZZ "Build libFuzzer targets" OFF)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-add_library(elfsec src/elfsec.c)
+add_library(elfsec src/elfsec.c src/elfs_read.c src/elfs_dyn.c src/elfs_profile.c)
 add_library(elfsec::elfsec ALIAS elfsec)
 target_include_directories(elfsec PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
@@ -47,9 +47,6 @@ install(FILES ${PROJECT_BINARY_DIR}/elfsec.pc
 
 if(ELFSEC_BUILD_TESTS)
     enable_testing()
-    add_executable(test_elfsec tests/test_elfsec.c)
-    target_link_libraries(test_elfsec PRIVATE elfsec)
-    add_test(NAME elfsec COMMAND test_elfsec)
     add_library(elfsec_header_check OBJECT tests/header_check.c)
     target_include_directories(elfsec_header_check PRIVATE include)
 endif()
