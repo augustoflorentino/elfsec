@@ -259,10 +259,26 @@ static uint64_t elfs_symbol_count(const elfs_elf_t *elf)
     return 0;
 }
 
+static void elfs_bound_symbols(elfs_elf_t *elf)
+{
+    uint64_t room = (elf->len - elf->sym_offset) / elf->sym_entsize;
+
+    if (elf->sym_count > ELFS_MAX_SYMBOLS) {
+        elf->sym_count = ELFS_MAX_SYMBOLS;
+        elf->profile.warnings |= ELFS_WARN_SYMBOL_BUDGET;
+    }
+    if (elf->sym_count > room) {
+        elf->sym_count = room;
+        elf->profile.warnings |= ELFS_WARN_TRUNCATED;
+    }
+    elf->has_symbols = elf->has_strtab;
+    if (!elf->has_strtab)
+        elf->profile.warnings |= ELFS_WARN_SYMBOLS;
+}
+
 static void elfs_locate_symbols(elfs_elf_t *elf)
 {
     uint64_t least = elf->is64 ? 24 : 16;
-    uint64_t room;
 
     if (!elf->tags[ELFS_TAG_SYMTAB].present)
         return;
@@ -277,18 +293,27 @@ static void elfs_locate_symbols(elfs_elf_t *elf)
         elf->profile.warnings |= ELFS_WARN_SYMBOLS;
         return;
     }
-    if (elf->sym_count > ELFS_MAX_SYMBOLS) {
-        elf->sym_count = ELFS_MAX_SYMBOLS;
-        elf->profile.warnings |= ELFS_WARN_SYMBOL_BUDGET;
-    }
-    room = (elf->len - elf->sym_offset) / elf->sym_entsize;
-    if (elf->sym_count > room) {
-        elf->sym_count = room;
-        elf->profile.warnings |= ELFS_WARN_TRUNCATED;
-    }
-    elf->has_symbols = elf->has_strtab;
-    if (!elf->has_strtab)
-        elf->profile.warnings |= ELFS_WARN_SYMBOLS;
+    elfs_bound_symbols(elf);
+}
+
+static void elfs_locate_from_sections(elfs_elf_t *elf)
+{
+    const elfs_shdr_t *dynsym = &elf->sections.dynsym;
+    elfs_shdr_t names;
+    uint64_t least = elf->is64 ? 24 : 16;
+
+    if (elf->has_dynamic || !elf->sections.has_dynsym || dynsym->entsize < least || dynsym->entsize > 4096)
+        return;
+    if (!elfs_shdr(elf, dynsym->link, &names) || !elfs_fits(elf, names.offset, 0) ||
+        !elfs_fits(elf, dynsym->offset, 0))
+        return;
+    elf->strtab.offset = names.offset;
+    elf->strtab.size = names.size < elf->len - names.offset ? names.size : elf->len - names.offset;
+    elf->has_strtab = 1;
+    elf->sym_offset = dynsym->offset;
+    elf->sym_entsize = dynsym->entsize;
+    elf->sym_count = dynsym->size / dynsym->entsize;
+    elfs_bound_symbols(elf);
 }
 
 static int elfs_allocate_lists(elfs_elf_t *elf)
@@ -381,6 +406,7 @@ int elfs_read_imports(elfs_elf_t *elf)
 
     elfs_locate_strtab(elf);
     elfs_locate_symbols(elf);
+    elfs_locate_from_sections(elf);
     status = elfs_allocate_lists(elf);
     if (status != ELFS_OK)
         return status;
