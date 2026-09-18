@@ -4,7 +4,8 @@ usage: python3 -I tests/oracle/sstrip.py IN OUT
 
 Drops the section header table and every byte after the last one a segment maps (or the
 program header table ends), and zeroes e_shoff, e_shnum and e_shstrndx. Segments are kept
-byte for byte. ELFkickers' optional removal of trailing zero bytes (-z) is not done.
+byte for byte. ELFkickers' optional removal of trailing zero bytes (-z) is not done. Like
+sstrip, refuses a file without program headers (objects, kernel modules): nothing would remain.
 """
 
 import struct
@@ -21,6 +22,8 @@ def sstrip(data: bytes) -> bytes:
     else:
         phoff, shoff = struct.unpack_from(order + "II", data, 28)
         phentsize, phnum = struct.unpack_from(order + "HH", data, 42)
+    if not phoff or not phnum:
+        raise ValueError("no program header table")
     end = max(phoff + phentsize * phnum, 64 if is64 else 52)
     for i in range(phnum):
         at = phoff + i * phentsize

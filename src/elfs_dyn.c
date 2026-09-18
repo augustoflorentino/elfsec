@@ -235,7 +235,9 @@ static uint64_t elfs_gnu_hash_count(const elfs_elf_t *elf)
 
         last = bucket > last ? bucket : last;
     }
-    if (last == 0 || last < symoffset)
+    if (last == 0)
+        return symoffset > 1 ? symoffset : 0;
+    if (last < symoffset)
         return 0;
     return elfs_gnu_chain_end(elf, buckets + nbuckets * 4, symoffset, last);
 }
