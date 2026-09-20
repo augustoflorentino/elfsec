@@ -36,9 +36,10 @@ int elfs_open(const unsigned char *data, size_t data_len, elfs_alloc_fn alloc_fn
     elfs_elf_t *elf;
     int status;
 
+    if (out_elf != NULL)
+        *out_elf = NULL;
     if (out_elf == NULL || (data == NULL && data_len > 0) || (alloc_fn == NULL) != (free_fn == NULL))
         return ELFS_ERR_ARG;
-    *out_elf = NULL;
     if (alloc_fn == NULL) {
         alloc_fn = elfs_default_alloc;
         free_fn = elfs_default_free;

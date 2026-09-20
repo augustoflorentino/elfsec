@@ -46,12 +46,12 @@ static void print_ev(const char *what, const elfs_evidence_t *ev)
 
 static void print_profile(const elfs_profile_t *p)
 {
-    static const char *const relro[] = {"none", "partial", "full"};
+    static const char *const relro[] = {"none", "partial", "full", "n/a"};
 
     printf("type %u\nkind %s\nmachine %u %s\nclass %u\nbig_endian %u\narch_tested %u\njudged %u\n", p->type, elfs_kind_name(p->kind),
            p->machine, elfs_machine_name(p->machine), p->elf_class, p->big_endian, p->arch_tested, p->judged);
     printf("canary %s\nnx %s\npie %s\nrelro %s\nfortify %s\nstatic %s\nstripped %s\n", tri(p->canary), tri(p->nx),
-           tri(p->pie), relro[p->relro % 3], tri(p->fortify), tri(p->static_linked), tri(p->stripped));
+           tri(p->pie), relro[p->relro % 4], tri(p->fortify), tri(p->static_linked), tri(p->stripped));
     printf("fortified %u\nfortifiable %u\nwarnings 0x%x\nentry 0x%llx\n", p->fortified, p->fortifiable, p->warnings,
            (unsigned long long)p->entry);
     if (p->interp != NULL)

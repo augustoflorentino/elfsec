@@ -13,6 +13,7 @@ typedef struct elfs_segments {
     uint64_t relro_index;
     uint64_t loads;
     uint64_t userland;
+    int cut;
 } elfs_segments_t;
 
 static void elfs_set_ev(elfs_evidence_t *ev, uint32_t source, uint64_t index, uint64_t offset)
@@ -73,8 +74,11 @@ static void elfs_read_segments(const elfs_elf_t *elf, elfs_segments_t *out_segme
     uint64_t i;
 
     memset(out_segments, 0, sizeof(*out_segments));
-    for (i = 0; elfs_phdr(elf, i, &ph); i++)
+    for (i = 0; elfs_phdr(elf, i, &ph); i++) {
         elfs_note_segment(out_segments, &ph, i);
+        if (ph.type == ELFS_PT_LOAD && !elfs_fits(elf, ph.offset, ph.filesz))
+            out_segments->cut = 1;
+    }
 }
 
 static void elfs_read_interp(elfs_elf_t *elf, const elfs_segments_t *s)
@@ -202,8 +206,7 @@ static uint32_t elfs_classify(const elfs_elf_t *elf, const elfs_segments_t *s, e
 
 static void elfs_not_judged(elfs_profile_t *p)
 {
-    p->canary = p->nx = p->pie = p->fortify = p->static_linked = p->stripped = ELFS_NA;
-    p->relro = ELFS_RELRO_NONE;
+    p->canary = p->nx = p->pie = p->relro = p->fortify = p->static_linked = p->stripped = ELFS_NA;
     memset(&p->ev_canary, 0, sizeof(p->ev_canary));
     memset(&p->ev_fortify, 0, sizeof(p->ev_fortify));
 }
@@ -369,6 +372,8 @@ void elfs_build_profile(elfs_elf_t *elf)
     elfs_segments_t s;
 
     elfs_read_segments(elf, &s);
+    if (s.cut)
+        p->warnings |= ELFS_WARN_TRUNCATED;
     elfs_read_interp(elf, &s);
     p->arch_tested = (uint8_t)elfs_arch_tested(p->machine);
     p->kind = elfs_classify(elf, &s, &p->ev_kind);

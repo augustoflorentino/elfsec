@@ -47,6 +47,9 @@ install(FILES ${PROJECT_BINARY_DIR}/elfsec.pc
 
 if(ELFSEC_BUILD_TESTS)
     enable_testing()
+    add_executable(test_elfsec tests/test_elfsec.c)
+    target_link_libraries(test_elfsec PRIVATE elfsec)
+    add_test(NAME elfsec COMMAND test_elfsec)
     add_library(elfsec_header_check OBJECT tests/header_check.c)
     target_include_directories(elfsec_header_check PRIVATE include)
 endif()
