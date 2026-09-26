@@ -99,6 +99,14 @@ static void elfs_check_tables(elfs_elf_t *elf)
         elf->shnum = 0;
         elf->profile.warnings |= ELFS_WARN_SECTIONS;
     }
+    if (elf->phnum > ELFS_MAX_SEGMENTS) {
+        elf->phnum = ELFS_MAX_SEGMENTS;
+        elf->profile.warnings |= ELFS_WARN_BUDGET;
+    }
+    if (elf->shnum > ELFS_MAX_SECTIONS) {
+        elf->shnum = ELFS_MAX_SECTIONS;
+        elf->profile.warnings |= ELFS_WARN_BUDGET;
+    }
 }
 
 int elfs_read_header(elfs_elf_t *elf)
@@ -184,35 +192,32 @@ int elfs_shdr(const elfs_elf_t *elf, uint64_t i, elfs_shdr_t *out_shdr)
     return 1;
 }
 
-static int elfs_name_is(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t at, const char *want)
+static int elfs_is(const char *name, size_t len, const char *want)
 {
-    const char *name;
-    size_t len;
-
-    if (!elfs_string(elf, names, at, &name, &len))
-        return 0;
     return len == strlen(want) && memcmp(name, want, len) == 0;
 }
 
-static int elfs_kernel_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t at)
+static int elfs_kernel_section(const char *name, size_t len)
 {
-    return elfs_name_is(elf, names, at, "__ksymtab") || elfs_name_is(elf, names, at, "__ksymtab_strings") ||
-           elfs_name_is(elf, names, at, "__ex_table");
+    return elfs_is(name, len, "__ksymtab") || elfs_is(name, len, "__ksymtab_strings") ||
+           elfs_is(name, len, "__ex_table");
 }
 
-static int elfs_kmod_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t at)
+static int elfs_kmod_section(const char *name, size_t len)
 {
-    return elfs_name_is(elf, names, at, ".modinfo") || elfs_name_is(elf, names, at, ".gnu.linkonce.this_module");
+    return elfs_is(name, len, ".modinfo") || elfs_is(name, len, ".gnu.linkonce.this_module");
 }
 
-static int elfs_uboot_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t at)
+static int elfs_uboot_section(const char *name, size_t len)
 {
-    return elfs_name_is(elf, names, at, "__u_boot_list") || elfs_name_is(elf, names, at, ".u_boot_list");
+    return elfs_is(name, len, "__u_boot_list") || elfs_is(name, len, ".u_boot_list");
 }
 
 static void elfs_note_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint32_t i, const elfs_shdr_t *sh)
 {
     elfs_sections_t *s = &elf->sections;
+    const char *name;
+    size_t len;
 
     if (sh->type == ELFS_SHT_DYNSYM && !s->has_dynsym) {
         s->has_dynsym = 1;
@@ -222,17 +227,17 @@ static void elfs_note_section(elfs_elf_t *elf, const elfs_strtab_t *names, uint3
         s->symtab_index = i;
         s->symtab = *sh;
     }
-    if (names == NULL)
+    if (names == NULL || !elfs_string(elf, names, sh->name, &name, &len))
         return;
-    if (!s->kmod && elfs_kmod_section(elf, names, sh->name)) {
+    if (!s->kmod && elfs_kmod_section(name, len)) {
         s->kmod = 1;
         s->kmod_index = i;
     }
-    if (!s->kernel && elfs_kernel_section(elf, names, sh->name)) {
+    if (!s->kernel && elfs_kernel_section(name, len)) {
         s->kernel = 1;
         s->kernel_index = i;
     }
-    if (!s->uboot && elfs_uboot_section(elf, names, sh->name)) {
+    if (!s->uboot && elfs_uboot_section(name, len)) {
         s->uboot = 1;
         s->uboot_index = i;
     }
@@ -297,7 +302,7 @@ int elfs_string(elfs_elf_t *elf, const elfs_strtab_t *table, uint64_t at, const 
     room = table->size - at;
     if (room > elf->read_left) {
         room = elf->read_left;
-        elf->profile.warnings |= ELFS_WARN_READ_BUDGET;
+        elf->profile.warnings |= ELFS_WARN_BUDGET;
     }
     start = elf->data + table->offset + at;
     nul = room ? memchr(start, 0, (size_t)room) : NULL;
@@ -324,7 +329,7 @@ void elfs_sym(const elfs_elf_t *elf, uint64_t offset, elfs_sym_t *out_sym)
     }
 }
 
-static int elfs_note_named_linux(const elfs_elf_t *elf, const elfs_phdr_t *ph, elfs_evidence_t *out_ev)
+static int elfs_note_named_linux(elfs_elf_t *elf, const elfs_phdr_t *ph, elfs_evidence_t *out_ev, uint32_t *left)
 {
     uint64_t at = ph->offset;
     uint64_t end = ph->offset + ph->filesz;
@@ -335,6 +340,11 @@ static int elfs_note_named_linux(const elfs_elf_t *elf, const elfs_phdr_t *ph, e
         uint64_t descsz = elfs_u32(elf, at + 4);
         uint64_t step = 12 + ((namesz + 3) & ~(uint64_t)3) + ((descsz + 3) & ~(uint64_t)3);
 
+        if (*left == 0) {
+            elf->profile.warnings |= ELFS_WARN_BUDGET;
+            return 0;
+        }
+        (*left)--;
         if (namesz == 6 && end - at >= 18 && memcmp(elf->data + at + 12, "Linux", 6) == 0) {
             out_ev->source = ELFS_SRC_NOTE;
             out_ev->index = n;
@@ -348,15 +358,16 @@ static int elfs_note_named_linux(const elfs_elf_t *elf, const elfs_phdr_t *ph, e
     return 0;
 }
 
-int elfs_has_linux_note(const elfs_elf_t *elf, elfs_evidence_t *out_ev)
+int elfs_has_linux_note(elfs_elf_t *elf, elfs_evidence_t *out_ev)
 {
     elfs_phdr_t ph;
+    uint32_t left = ELFS_MAX_NOTES;
     uint64_t i;
 
     for (i = 0; elfs_phdr(elf, i, &ph); i++) {
         if (ph.type != ELFS_PT_NOTE || !elfs_fits(elf, ph.offset, ph.filesz))
             continue;
-        if (elfs_note_named_linux(elf, &ph, out_ev))
+        if (elfs_note_named_linux(elf, &ph, out_ev, &left))
             return 1;
     }
     return 0;

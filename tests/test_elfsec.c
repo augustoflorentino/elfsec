@@ -494,6 +494,124 @@ static void test_truncation(void)
     }
 }
 
+static void put_le(unsigned char *d, size_t at, uint64_t v, unsigned n)
+{
+    unsigned i;
+
+    for (i = 0; i < n; i++)
+        d[at + i] = (unsigned char)(v >> (8 * i));
+}
+
+static void bound_segment(unsigned char *d, uint64_t i, uint32_t type, uint64_t offset, uint64_t size)
+{
+    size_t at = 64 + (size_t)i * 56;
+
+    put_le(d, at, type, 4);
+    put_le(d, at + 8, offset, 8);
+    put_le(d, at + 16, offset, 8);
+    put_le(d, at + 32, size, 8);
+    put_le(d, at + 40, size, 8);
+}
+
+static unsigned char *bound_image(size_t len, uint16_t type, uint64_t phnum)
+{
+    unsigned char *d = calloc(1, len);
+
+    CHECK(d != NULL);
+    memcpy(d, "\177ELF\2\1\1", 7);
+    put_le(d, 16, type, 2);
+    put_le(d, 18, 62, 2);
+    put_le(d, 32, 64, 8);
+    put_le(d, 54, 56, 2);
+    put_le(d, 56, phnum, 2);
+    put_le(d, 58, 64, 2);
+    bound_segment(d, 0, 1, 0, len);
+    return d;
+}
+
+static uint32_t bound_warnings(const unsigned char *d, size_t len, elfs_profile_t *p)
+{
+    elfs_elf_t *elf;
+
+    CHECK(elfs_open(d, len, NULL, NULL, NULL, &elf) == ELFS_OK && elfs_profile(elf, p) == ELFS_OK);
+    elfs_destroy(elf);
+    return p->warnings;
+}
+
+static void test_table_bounds(void)
+{
+    size_t len = (ELFS_MAX_SECTIONS + 16) * 64;
+    unsigned char *d = bound_image(len, 2, 0xffff);
+    elfs_profile_t p;
+    size_t i;
+
+    put_le(d, 40, 64, 8);
+    put_le(d, 60, 0, 2);
+    put_le(d, 64 + 32, ELFS_MAX_SECTIONS + 8, 8);
+    put_le(d, 64 + 44, ELFS_MAX_SEGMENTS + 8, 4);
+    CHECK(bound_warnings(d, len, &p) & ELFS_WARN_BUDGET);
+    free(d);
+    d = bound_image(len, 3, 2);
+    bound_segment(d, 1, 2, 0x1000, (ELFS_MAX_DYNAMIC + 8) * 16);
+    CHECK(bound_warnings(d, len, &p) & ELFS_WARN_BUDGET);
+    free(d);
+    d = bound_image(len, 2, 2);
+    bound_segment(d, 1, 4, 0x1000, (ELFS_MAX_NOTES + 8) * 12);
+    CHECK(bound_warnings(d, len, &p) & ELFS_WARN_BUDGET);
+    for (i = 0; i < 2; i++)
+        bound_segment(d, 1 + i, 4, 0x1000 + i * ELFS_MAX_NOTES * 12, ELFS_MAX_NOTES * 12);
+    put_le(d, 56, 3, 2);
+    CHECK(bound_warnings(d, len, &p) & ELFS_WARN_BUDGET);
+    free(d);
+}
+
+static void test_path_bound(void)
+{
+    size_t len = 0x10000, i, plen;
+    unsigned char *d = bound_image(len, 3, 2);
+    const char *path;
+    elfs_elf_t *elf;
+    elfs_profile_t p;
+    uint32_t flags;
+
+    bound_segment(d, 1, 2, 0x1000, 4 * 16);
+    put_le(d, 0x1000, 5, 8);
+    put_le(d, 0x1008, 0x2000, 8);
+    put_le(d, 0x1010, 10, 8);
+    put_le(d, 0x1018, 0x8000, 8);
+    put_le(d, 0x1020, 29, 8);
+    put_le(d, 0x1028, 1, 8);
+    for (i = 0; i < ELFS_MAX_PATHS + 8; i++)
+        memcpy(d + 0x2001 + 3 * i, "/a:", 3);
+    d[0x2001 + 3 * (ELFS_MAX_PATHS + 8) - 1] = 0;
+    CHECK(elfs_open(d, len, NULL, NULL, NULL, &elf) == ELFS_OK && elfs_profile(elf, &p) == ELFS_OK);
+    CHECK(p.path_count == ELFS_MAX_PATHS && (p.warnings & ELFS_WARN_BUDGET));
+    CHECK(elfs_search_path(elf, ELFS_MAX_PATHS - 1, &path, &plen, &flags) == ELFS_OK);
+    CHECK(STR_IS(path, plen, "/a") && path == (const char *)d + 0x2001 + 3 * (ELFS_MAX_PATHS - 1));
+    CHECK(flags == ELFS_PATH_RUNPATH);
+    CHECK(elfs_search_path(elf, ELFS_MAX_PATHS, &path, &plen, &flags) == ELFS_ERR_ARG);
+    elfs_destroy(elf);
+    free(d);
+}
+
+static void test_gnu_hash_bound(void)
+{
+    size_t len = 0x10000;
+    unsigned char *d = bound_image(len, 3, 2);
+    elfs_profile_t p;
+
+    bound_segment(d, 1, 2, 0x1000, 3 * 16);
+    put_le(d, 0x1000, 0x6ffffef5u, 8);
+    put_le(d, 0x1008, 0x2000, 8);
+    put_le(d, 0x1010, 6, 8);
+    put_le(d, 0x1018, 0x3000, 8);
+    put_le(d, 0x2000, ELFS_MAX_SYMBOLS + 1, 4);
+    put_le(d, 0x2004, 1, 4);
+    CHECK(bound_warnings(d, len, &p) & ELFS_WARN_SYMBOLS);
+    CHECK(p.import_count == 0);
+    free(d);
+}
+
 int main(void)
 {
     test_hardened_every_layout();
@@ -510,6 +628,9 @@ int main(void)
     test_allocation_failure();
     test_corrupt_tables();
     test_truncation();
+    test_table_bounds();
+    test_path_bound();
+    test_gnu_hash_bound();
     puts("ok");
     return 0;
 }

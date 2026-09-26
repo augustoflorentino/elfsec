@@ -153,7 +153,6 @@ struct elfs_elf {
     uint64_t sym_entsize;
     uint64_t needed_tags;
     uint64_t path_tags;
-    uint64_t path_strings;
     uint32_t *list;
     uint64_t danger_at;
     uint64_t needed_at;
@@ -178,16 +177,21 @@ ELFS_INTERN int elfs_string(elfs_elf_t *elf, const elfs_strtab_t *table, uint64_
 ELFS_INTERN void elfs_peek_string(const elfs_elf_t *elf, const elfs_strtab_t *table, uint64_t at,
                                   const char **out_str, size_t *out_len);
 ELFS_INTERN void elfs_sym(const elfs_elf_t *elf, uint64_t offset, elfs_sym_t *out_sym);
-ELFS_INTERN int elfs_has_linux_note(const elfs_elf_t *elf, elfs_evidence_t *out_ev);
+ELFS_INTERN int elfs_has_linux_note(elfs_elf_t *elf, elfs_evidence_t *out_ev);
 
 ELFS_INTERN void elfs_read_dynamic(elfs_elf_t *elf);
 ELFS_INTERN int elfs_dyn_entry(const elfs_elf_t *elf, uint64_t i, int64_t *out_tag, uint64_t *out_value);
 ELFS_INTERN int elfs_read_imports(elfs_elf_t *elf);
-ELFS_INTERN void elfs_symbol_at(const elfs_elf_t *elf, uint32_t index, elfs_symbol_t *out_symbol);
-ELFS_INTERN uint32_t elfs_danger_of(const char *name, size_t name_len);
+#define ELFS_DANGER_SHIFT 24
+#if ELFS_MAX_SYMBOLS >= (1u << ELFS_DANGER_SHIFT)
+#error "ELFS_MAX_SYMBOLS must fit below ELFS_DANGER_SHIFT"
+#endif
+ELFS_INTERN void elfs_symbol_at(const elfs_elf_t *elf, uint32_t entry, elfs_symbol_t *out_symbol);
+#define ELFS_NAME_DANGER 0x0fu
+#define ELFS_NAME_FORTIFIABLE 0x10u
+#define ELFS_NAME_CANARY 0x20u
+ELFS_INTERN uint32_t elfs_name_meaning(const char *name, size_t name_len);
 ELFS_INTERN int elfs_is_fortified(const char *name, size_t name_len);
-ELFS_INTERN int elfs_is_fortifiable(const char *name, size_t name_len);
-ELFS_INTERN int elfs_is_canary(const char *name, size_t name_len);
 ELFS_INTERN void elfs_scan_paths(elfs_elf_t *elf);
 ELFS_INTERN int elfs_path_entry(const elfs_elf_t *elf, size_t i, const char **out_path, size_t *out_len,
                                 uint32_t *out_flags);

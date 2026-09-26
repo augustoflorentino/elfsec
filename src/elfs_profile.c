@@ -121,7 +121,7 @@ static int elfs_arch_tested(uint32_t machine)
     }
 }
 
-static int elfs_is_kernel(const elfs_elf_t *elf, elfs_evidence_t *ev)
+static int elfs_is_kernel(elfs_elf_t *elf, elfs_evidence_t *ev)
 {
     if (elf->sections.kernel) {
         elfs_section_ev(elf, ev, elf->sections.kernel_index);
@@ -174,7 +174,7 @@ static uint32_t elfs_kind_exec(const elfs_elf_t *elf, const elfs_segments_t *s, 
     return ELFS_KIND_EXEC;
 }
 
-static uint32_t elfs_kind_loadable(const elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
+static uint32_t elfs_kind_loadable(elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
 {
     int alone = !s->has_interp && elf->needed_tags == 0 && !elf->tags[ELFS_TAG_SONAME].present;
 
@@ -185,7 +185,7 @@ static uint32_t elfs_kind_loadable(const elfs_elf_t *elf, const elfs_segments_t 
     return elf->type == ELFS_ET_DYN ? elfs_kind_dyn(elf, s, ev) : elfs_kind_exec(elf, s, ev);
 }
 
-static uint32_t elfs_classify(const elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
+static uint32_t elfs_classify(elfs_elf_t *elf, const elfs_segments_t *s, elfs_evidence_t *ev)
 {
     elfs_set_ev(ev, ELFS_SRC_HEADER, 0, 0);
     switch (elf->type) {
@@ -266,7 +266,7 @@ static void elfs_note_static_symbol(elfs_elf_t *elf, const elfs_sym_t *sym, cons
     elfs_profile_t *p = &elf->profile;
     const elfs_shdr_t *tab = &elf->sections.symtab;
 
-    if (elfs_is_canary(name, len) && p->ev_canary.source == ELFS_SRC_NONE)
+    if ((elfs_name_meaning(name, len) & ELFS_NAME_CANARY) && p->ev_canary.source == ELFS_SRC_NONE)
         elfs_set_ev(&p->ev_canary, ELFS_SRC_SYMTAB, i, tab->offset + i * tab->entsize);
     if ((sym->info & 0xf) != ELFS_STT_FUNC || !elfs_is_fortified(name, len))
         return;

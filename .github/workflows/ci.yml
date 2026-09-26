@@ -102,3 +102,5 @@ jobs:
       - run: cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -Iinclude src/*.c tests/elfs_dump.c -o dump
       - run: python3 -I tests/oracle/readelf_oracle.py ./dump /usr/bin /usr/lib/x86_64-linux-gnu
       - run: python3 -I tests/oracle/sstrip_oracle.py ./dump "$RUNNER_TEMP/sstrip" /usr/bin /usr/lib/x86_64-linux-gnu
+      - run: cc -std=c99 -O2 -Wall -Wextra -Wpedantic -Werror -Iinclude src/*.c bench/adversarial.c -o adversarial
+      - run: ./adversarial 64

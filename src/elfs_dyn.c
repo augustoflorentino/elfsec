@@ -7,37 +7,108 @@ static const uint32_t elfs_tag_codes[ELFS_TAG_COUNT] = {
     ELFS_DT_MIPS_SYMTABNO, ELFS_DT_SONAME, ELFS_DT_BIND_NOW, ELFS_DT_FLAGS, ELFS_DT_FLAGS_1,
 };
 
-static const char *const elfs_fortifiable[] = {
-    "asprintf",   "confstr",        "dprintf",         "explicit_bzero", "fgets",      "fgets_unlocked",
-    "fgetws",     "fgetws_unlocked", "fprintf",        "fread",          "fread_unlocked", "fwprintf",
-    "getcwd",     "getdomainname",  "getgroups",       "gethostname",    "getlogin_r", "gets",
-    "getwd",      "inet_ntop",      "inet_pton",       "longjmp",        "mbsnrtowcs", "mbsrtowcs",
-    "mbstowcs",   "memcpy",         "memmove",         "mempcpy",        "memset",     "memset_explicit",
-    "obstack_printf", "obstack_vprintf", "poll",       "ppoll",          "pread",      "pread64",
-    "printf",     "ptsname_r",      "read",            "readlink",       "readlinkat", "realpath",
-    "recv",       "recvfrom",       "snprintf",        "sprintf",        "stpcpy",     "stpncpy",
-    "strcat",     "strcpy",         "strlcat",         "strlcpy",        "strncat",    "strncpy",
-    "swprintf",   "syslog",         "ttyname_r",       "vasprintf",      "vdprintf",   "vfprintf",
-    "vfwprintf",  "vprintf",        "vsnprintf",       "vsprintf",       "vswprintf",  "vsyslog",
-    "vwprintf",   "wcpcpy",         "wcpncpy",         "wcrtomb",        "wcscat",     "wcscpy",
-    "wcslcat",    "wcslcpy",        "wcsncat",         "wcsncpy",        "wcsnrtombs", "wcsrtombs",
-    "wcstombs",   "wctomb",         "wmemcpy",         "wmemmove",       "wmempcpy",   "wmemset",
-    "wprintf",
-};
-
 static const struct {
     const char *name;
-    uint32_t danger;
-} elfs_dangers[] = {
-    {"gets", ELFS_DANGER_UNBOUNDED},    {"mktemp", ELFS_DANGER_TEMPFILE},  {"popen", ELFS_DANGER_COMMAND},
-    {"sprintf", ELFS_DANGER_UNBOUNDED}, {"strcat", ELFS_DANGER_UNBOUNDED}, {"strcpy", ELFS_DANGER_UNBOUNDED},
-    {"system", ELFS_DANGER_COMMAND},    {"tempnam", ELFS_DANGER_TEMPFILE}, {"tmpnam", ELFS_DANGER_TEMPFILE},
-    {"vsprintf", ELFS_DANGER_UNBOUNDED}, {"wcscat", ELFS_DANGER_UNBOUNDED}, {"wcscpy", ELFS_DANGER_UNBOUNDED},
+    uint8_t len;
+    uint8_t meaning;
+} elfs_names[] = {
+    {"__stack_chk_fail", 16, ELFS_NAME_CANARY},
+    {"__stack_chk_fail_local", 22, ELFS_NAME_CANARY},
+    {"__stack_chk_guard", 17, ELFS_NAME_CANARY},
+    {"asprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"confstr", 7, ELFS_NAME_FORTIFIABLE},
+    {"dprintf", 7, ELFS_NAME_FORTIFIABLE},
+    {"explicit_bzero", 14, ELFS_NAME_FORTIFIABLE},
+    {"fgets", 5, ELFS_NAME_FORTIFIABLE},
+    {"fgets_unlocked", 14, ELFS_NAME_FORTIFIABLE},
+    {"fgetws", 6, ELFS_NAME_FORTIFIABLE},
+    {"fgetws_unlocked", 15, ELFS_NAME_FORTIFIABLE},
+    {"fprintf", 7, ELFS_NAME_FORTIFIABLE},
+    {"fread", 5, ELFS_NAME_FORTIFIABLE},
+    {"fread_unlocked", 14, ELFS_NAME_FORTIFIABLE},
+    {"fwprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"getcwd", 6, ELFS_NAME_FORTIFIABLE},
+    {"getdomainname", 13, ELFS_NAME_FORTIFIABLE},
+    {"getgroups", 9, ELFS_NAME_FORTIFIABLE},
+    {"gethostname", 11, ELFS_NAME_FORTIFIABLE},
+    {"getlogin_r", 10, ELFS_NAME_FORTIFIABLE},
+    {"gets", 4, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"getwd", 5, ELFS_NAME_FORTIFIABLE},
+    {"inet_ntop", 9, ELFS_NAME_FORTIFIABLE},
+    {"inet_pton", 9, ELFS_NAME_FORTIFIABLE},
+    {"longjmp", 7, ELFS_NAME_FORTIFIABLE},
+    {"mbsnrtowcs", 10, ELFS_NAME_FORTIFIABLE},
+    {"mbsrtowcs", 9, ELFS_NAME_FORTIFIABLE},
+    {"mbstowcs", 8, ELFS_NAME_FORTIFIABLE},
+    {"memcpy", 6, ELFS_NAME_FORTIFIABLE},
+    {"memmove", 7, ELFS_NAME_FORTIFIABLE},
+    {"mempcpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"memset", 6, ELFS_NAME_FORTIFIABLE},
+    {"memset_explicit", 15, ELFS_NAME_FORTIFIABLE},
+    {"mktemp", 6, ELFS_DANGER_TEMPFILE},
+    {"obstack_printf", 14, ELFS_NAME_FORTIFIABLE},
+    {"obstack_vprintf", 15, ELFS_NAME_FORTIFIABLE},
+    {"poll", 4, ELFS_NAME_FORTIFIABLE},
+    {"popen", 5, ELFS_DANGER_COMMAND},
+    {"ppoll", 5, ELFS_NAME_FORTIFIABLE},
+    {"pread", 5, ELFS_NAME_FORTIFIABLE},
+    {"pread64", 7, ELFS_NAME_FORTIFIABLE},
+    {"printf", 6, ELFS_NAME_FORTIFIABLE},
+    {"ptsname_r", 9, ELFS_NAME_FORTIFIABLE},
+    {"read", 4, ELFS_NAME_FORTIFIABLE},
+    {"readlink", 8, ELFS_NAME_FORTIFIABLE},
+    {"readlinkat", 10, ELFS_NAME_FORTIFIABLE},
+    {"realpath", 8, ELFS_NAME_FORTIFIABLE},
+    {"recv", 4, ELFS_NAME_FORTIFIABLE},
+    {"recvfrom", 8, ELFS_NAME_FORTIFIABLE},
+    {"snprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"sprintf", 7, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"stpcpy", 6, ELFS_NAME_FORTIFIABLE},
+    {"stpncpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"strcat", 6, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"strcpy", 6, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"strlcat", 7, ELFS_NAME_FORTIFIABLE},
+    {"strlcpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"strncat", 7, ELFS_NAME_FORTIFIABLE},
+    {"strncpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"swprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"syslog", 6, ELFS_NAME_FORTIFIABLE},
+    {"system", 6, ELFS_DANGER_COMMAND},
+    {"tempnam", 7, ELFS_DANGER_TEMPFILE},
+    {"tmpnam", 6, ELFS_DANGER_TEMPFILE},
+    {"ttyname_r", 9, ELFS_NAME_FORTIFIABLE},
+    {"vasprintf", 9, ELFS_NAME_FORTIFIABLE},
+    {"vdprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"vfprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"vfwprintf", 9, ELFS_NAME_FORTIFIABLE},
+    {"vprintf", 7, ELFS_NAME_FORTIFIABLE},
+    {"vsnprintf", 9, ELFS_NAME_FORTIFIABLE},
+    {"vsprintf", 8, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"vswprintf", 9, ELFS_NAME_FORTIFIABLE},
+    {"vsyslog", 7, ELFS_NAME_FORTIFIABLE},
+    {"vwprintf", 8, ELFS_NAME_FORTIFIABLE},
+    {"wcpcpy", 6, ELFS_NAME_FORTIFIABLE},
+    {"wcpncpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"wcrtomb", 7, ELFS_NAME_FORTIFIABLE},
+    {"wcscat", 6, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"wcscpy", 6, ELFS_DANGER_UNBOUNDED | ELFS_NAME_FORTIFIABLE},
+    {"wcslcat", 7, ELFS_NAME_FORTIFIABLE},
+    {"wcslcpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"wcsncat", 7, ELFS_NAME_FORTIFIABLE},
+    {"wcsncpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"wcsnrtombs", 10, ELFS_NAME_FORTIFIABLE},
+    {"wcsrtombs", 9, ELFS_NAME_FORTIFIABLE},
+    {"wcstombs", 8, ELFS_NAME_FORTIFIABLE},
+    {"wctomb", 6, ELFS_NAME_FORTIFIABLE},
+    {"wmemcpy", 7, ELFS_NAME_FORTIFIABLE},
+    {"wmemmove", 8, ELFS_NAME_FORTIFIABLE},
+    {"wmempcpy", 8, ELFS_NAME_FORTIFIABLE},
+    {"wmemset", 7, ELFS_NAME_FORTIFIABLE},
+    {"wprintf", 7, ELFS_NAME_FORTIFIABLE},
 };
 
-static int elfs_compare(const char *name, size_t name_len, const char *entry)
+static int elfs_compare(const char *name, size_t name_len, const char *entry, size_t entry_len)
 {
-    size_t entry_len = strlen(entry);
     int order = memcmp(name, entry, name_len < entry_len ? name_len : entry_len);
 
     if (order != 0)
@@ -45,51 +116,29 @@ static int elfs_compare(const char *name, size_t name_len, const char *entry)
     return name_len < entry_len ? -1 : name_len > entry_len;
 }
 
-static int elfs_find_name(const char *const *table, size_t count, size_t stride, const char *name, size_t name_len)
+uint32_t elfs_name_meaning(const char *name, size_t name_len)
 {
     size_t lo = 0;
-    size_t hi = count;
+    size_t hi = sizeof(elfs_names) / sizeof(elfs_names[0]);
 
     while (lo < hi) {
         size_t mid = lo + (hi - lo) / 2;
-        const char *entry = *(const char *const *)((const char *)table + mid * stride);
-        int order = elfs_compare(name, name_len, entry);
+        int order = elfs_compare(name, name_len, elfs_names[mid].name, elfs_names[mid].len);
 
         if (order == 0)
-            return (int)mid;
+            return elfs_names[mid].meaning;
         if (order < 0)
             hi = mid;
         else
             lo = mid + 1;
     }
-    return -1;
-}
-
-uint32_t elfs_danger_of(const char *name, size_t name_len)
-{
-    int at = elfs_find_name(&elfs_dangers[0].name, sizeof(elfs_dangers) / sizeof(elfs_dangers[0]),
-                            sizeof(elfs_dangers[0]), name, name_len);
-
-    return at < 0 ? ELFS_DANGER_NONE : elfs_dangers[at].danger;
-}
-
-int elfs_is_canary(const char *name, size_t name_len)
-{
-    return elfs_compare(name, name_len, "__stack_chk_fail") == 0 ||
-           elfs_compare(name, name_len, "__stack_chk_guard") == 0 ||
-           elfs_compare(name, name_len, "__stack_chk_fail_local") == 0;
+    return 0;
 }
 
 int elfs_is_fortified(const char *name, size_t name_len)
 {
-    return name_len > 4 && memcmp(name + name_len - 4, "_chk", 4) == 0 && !elfs_is_canary(name, name_len);
-}
-
-int elfs_is_fortifiable(const char *name, size_t name_len)
-{
-    size_t count = sizeof(elfs_fortifiable) / sizeof(elfs_fortifiable[0]);
-
-    return elfs_find_name(elfs_fortifiable, count, sizeof(elfs_fortifiable[0]), name, name_len) >= 0;
+    return name_len > 4 && memcmp(name + name_len - 4, "_chk", 4) == 0 &&
+           !(elfs_name_meaning(name, name_len) & ELFS_NAME_CANARY);
 }
 
 int elfs_dyn_entry(const elfs_elf_t *elf, uint64_t i, int64_t *out_tag, uint64_t *out_value)
@@ -158,9 +207,9 @@ void elfs_read_dynamic(elfs_elf_t *elf)
     elf->dyn_segment = (uint32_t)index;
     elf->dyn_offset = ph.offset;
     elf->dyn_count = (ph.filesz < room ? ph.filesz : room) / size;
-    if (elf->dyn_count > ELFS_MAX_SYMBOLS) {
-        elf->dyn_count = ELFS_MAX_SYMBOLS;
-        elf->profile.warnings |= ELFS_WARN_DYNAMIC;
+    if (elf->dyn_count > ELFS_MAX_DYNAMIC) {
+        elf->dyn_count = ELFS_MAX_DYNAMIC;
+        elf->profile.warnings |= ELFS_WARN_BUDGET;
     }
     elfs_scan_tags(elf);
 }
@@ -228,7 +277,7 @@ static uint64_t elfs_gnu_hash_count(const elfs_elf_t *elf)
     nbuckets = elfs_u32(elf, offset);
     symoffset = elfs_u32(elf, offset + 4);
     buckets = offset + 16 + (uint64_t)elfs_u32(elf, offset + 8) * (elf->is64 ? 8 : 4);
-    if (!elfs_fits(elf, buckets, nbuckets * 4))
+    if (nbuckets > ELFS_MAX_SYMBOLS || !elfs_fits(elf, buckets, nbuckets * 4))
         return 0;
     for (i = 0; i < nbuckets; i++) {
         uint64_t bucket = elfs_u32(elf, buckets + i * 4);
@@ -320,7 +369,7 @@ static void elfs_locate_from_sections(elfs_elf_t *elf)
 
 static int elfs_allocate_lists(elfs_elf_t *elf)
 {
-    uint64_t slots = 2 * elf->sym_count + elf->needed_tags + elf->path_tags;
+    uint64_t slots = 2 * elf->sym_count + elf->needed_tags + (elf->path_tags ? 2 * ELFS_MAX_PATHS : 0);
 
     if (slots == 0)
         return ELFS_OK;
@@ -338,10 +387,13 @@ static void elfs_note_import(elfs_elf_t *elf, uint32_t index, const char *name, 
     elfs_profile_t *p = &elf->profile;
     uint64_t at = elf->sym_offset + (uint64_t)index * elf->sym_entsize;
 
-    elf->list[p->import_count++] = index;
-    if (elfs_danger_of(name, len) != ELFS_DANGER_NONE)
-        elf->list[elf->danger_at + p->danger_count++] = index;
-    if (elfs_is_canary(name, len) && p->ev_canary.source == ELFS_SRC_NONE) {
+    uint32_t meaning = elfs_name_meaning(name, len);
+    uint32_t entry = index | (meaning & ELFS_NAME_DANGER) << ELFS_DANGER_SHIFT;
+
+    elf->list[p->import_count++] = entry;
+    if (meaning & ELFS_NAME_DANGER)
+        elf->list[elf->danger_at + p->danger_count++] = entry;
+    if ((meaning & ELFS_NAME_CANARY) && p->ev_canary.source == ELFS_SRC_NONE) {
         p->ev_canary.source = ELFS_SRC_SYMBOL;
         p->ev_canary.index = index;
         p->ev_canary.offset = at;
@@ -353,7 +405,7 @@ static void elfs_note_import(elfs_elf_t *elf, uint32_t index, const char *name, 
             p->ev_fortify.index = index;
             p->ev_fortify.offset = at;
         }
-    } else if (elfs_is_fortifiable(name, len)) {
+    } else if (meaning & ELFS_NAME_FORTIFIABLE) {
         p->fortifiable++;
     }
 }
@@ -419,9 +471,10 @@ int elfs_read_imports(elfs_elf_t *elf)
     return ELFS_OK;
 }
 
-void elfs_symbol_at(const elfs_elf_t *elf, uint32_t index, elfs_symbol_t *out_symbol)
+void elfs_symbol_at(const elfs_elf_t *elf, uint32_t entry, elfs_symbol_t *out_symbol)
 {
     elfs_sym_t sym;
+    uint32_t index = entry & ((1u << ELFS_DANGER_SHIFT) - 1);
     uint64_t at = elf->sym_offset + (uint64_t)index * elf->sym_entsize;
 
     memset(out_symbol, 0, sizeof(*out_symbol));
@@ -429,7 +482,7 @@ void elfs_symbol_at(const elfs_elf_t *elf, uint32_t index, elfs_symbol_t *out_sy
     elfs_peek_string(elf, &elf->strtab, sym.name, &out_symbol->name, &out_symbol->name_len);
     out_symbol->offset = at;
     out_symbol->index = index;
-    out_symbol->danger = elfs_danger_of(out_symbol->name, out_symbol->name_len);
+    out_symbol->danger = entry >> ELFS_DANGER_SHIFT;
     out_symbol->bind = (uint8_t)(sym.info >> 4);
     out_symbol->type = (uint8_t)(sym.info & 0xf);
 }
@@ -463,32 +516,26 @@ static uint32_t elfs_path_flags(const char *s, size_t len, int64_t tag)
     return flags;
 }
 
-typedef int (*elfs_path_visit)(void *ctx, const char *path, size_t len, uint32_t flags);
-
-static int elfs_split_path(const char *s, size_t len, int64_t tag, elfs_path_visit visit, void *ctx)
+static void elfs_split_path(elfs_elf_t *elf, uint64_t dyn_index, uint64_t at, const char *s, size_t len,
+                            int64_t tag)
 {
+    elfs_profile_t *p = &elf->profile;
     size_t start = 0;
     size_t i;
 
     for (i = 0; i <= len; i++) {
         if (i < len && s[i] != ':')
             continue;
-        if (visit(ctx, s + start, i - start, elfs_path_flags(s + start, i - start, tag)))
-            return 1;
+        if (p->path_count == ELFS_MAX_PATHS || at + start > UINT32_MAX) {
+            p->warnings |= ELFS_WARN_BUDGET;
+            return;
+        }
+        elf->list[elf->path_at + 2 * p->path_count] = (uint32_t)dyn_index;
+        elf->list[elf->path_at + 2 * p->path_count + 1] = (uint32_t)(at + start);
+        p->path_count++;
+        p->path_flags |= elfs_path_flags(s + start, i - start, tag);
         start = i + 1;
     }
-    return 0;
-}
-
-static int elfs_count_path(void *ctx, const char *path, size_t len, uint32_t flags)
-{
-    elfs_profile_t *p = ctx;
-
-    (void)path;
-    (void)len;
-    p->path_count++;
-    p->path_flags |= flags;
-    return 0;
 }
 
 void elfs_scan_paths(elfs_elf_t *elf)
@@ -502,49 +549,25 @@ void elfs_scan_paths(elfs_elf_t *elf)
     for (i = 0; elf->has_strtab && elfs_dyn_entry(elf, i, &tag, &value); i++) {
         if ((tag != ELFS_DT_RPATH && tag != ELFS_DT_RUNPATH) || !elfs_string(elf, &elf->strtab, value, &s, &len))
             continue;
-        elf->list[elf->path_at + elf->path_strings++] = (uint32_t)i;
-        elfs_split_path(s, len, tag, elfs_count_path, &elf->profile);
+        elfs_split_path(elf, i, value, s, len, tag);
     }
-}
-
-typedef struct elfs_path_pick {
-    size_t remaining;
-    const char *path;
-    size_t len;
-    uint32_t flags;
-} elfs_path_pick_t;
-
-static int elfs_pick_path(void *ctx, const char *path, size_t len, uint32_t flags)
-{
-    elfs_path_pick_t *pick = ctx;
-
-    if (pick->remaining-- != 0)
-        return 0;
-    pick->path = path;
-    pick->len = len;
-    pick->flags = flags;
-    return 1;
 }
 
 int elfs_path_entry(const elfs_elf_t *elf, size_t i, const char **out_path, size_t *out_len, uint32_t *out_flags)
 {
-    elfs_path_pick_t pick = {0, NULL, 0, 0};
     const char *s;
-    size_t len;
+    size_t len = 0;
     int64_t tag;
     uint64_t value;
-    uint64_t k;
 
-    pick.remaining = i;
-    for (k = 0; k < elf->path_strings; k++) {
-        elfs_dyn_entry(elf, elf->list[elf->path_at + k], &tag, &value);
-        elfs_peek_string(elf, &elf->strtab, value, &s, &len);
-        if (elfs_split_path(s, len, tag, elfs_pick_path, &pick)) {
-            *out_path = pick.path;
-            *out_len = pick.len;
-            *out_flags = pick.flags;
-            return 1;
-        }
-    }
-    return 0;
+    if (i >= elf->profile.path_count)
+        return 0;
+    elfs_dyn_entry(elf, elf->list[elf->path_at + 2 * i], &tag, &value);
+    s = (const char *)elf->data + elf->strtab.offset + elf->list[elf->path_at + 2 * i + 1];
+    while (s[len] != ':' && s[len] != '\0')
+        len++;
+    *out_path = s;
+    *out_len = len;
+    *out_flags = elfs_path_flags(s, len, tag);
+    return 1;
 }
