@@ -85,6 +85,7 @@ typedef struct elfs_phdr {
     uint64_t offset;
     uint64_t vaddr;
     uint64_t filesz;
+    uint64_t align;
 } elfs_phdr_t;
 
 typedef struct elfs_shdr {
@@ -197,5 +198,7 @@ ELFS_INTERN int elfs_path_entry(const elfs_elf_t *elf, size_t i, const char **ou
                                 uint32_t *out_flags);
 
 ELFS_INTERN void elfs_build_profile(elfs_elf_t *elf);
+
+ELFS_INTERN void elfs_judge_property(elfs_elf_t *elf);
 
 #endif

@@ -612,6 +612,49 @@ static void test_gnu_hash_bound(void)
     free(d);
 }
 
+static void property_case(uint16_t machine, uint32_t seg_type, int with_note, uint32_t prop, uint32_t bits,
+                          elfs_profile_t *p)
+{
+    size_t len = 0x2000;
+    unsigned char *d = bound_image(len, 2, 3);
+
+    put_le(d, 18, machine, 2);
+    bound_segment(d, 1, 0x6474e551u, 0, 0);
+    put_le(d, 64 + 56 + 4, 6, 4);
+    bound_segment(d, 2, seg_type, 0x1000, with_note ? 48 : 0);
+    put_le(d, 64 + 2 * 56 + 48, 8, 8);
+    put_le(d, 0x1000, 4, 4);
+    put_le(d, 0x1004, 32, 4);
+    put_le(d, 0x1008, 5, 4);
+    memcpy(d + 0x100c, "GNU", 4);
+    put_le(d, 0x1010, 0xc0008002u, 4);
+    put_le(d, 0x1014, 4, 4);
+    put_le(d, 0x1020, prop, 4);
+    put_le(d, 0x1024, 4, 4);
+    put_le(d, 0x1028, bits, 4);
+    bound_warnings(d, len, p);
+    free(d);
+}
+
+static void test_property(void)
+{
+    elfs_profile_t p;
+
+    property_case(62, 0x6474e553u, 1, 0xc0000002u, 3, &p);
+    CHECK(p.judged && p.ibt == ELFS_YES && p.shstk == ELFS_YES && p.bti == ELFS_NA && p.pac == ELFS_NA);
+    CHECK(p.ev_property.source == ELFS_SRC_SEGMENT && p.ev_property.index == 2 && p.ev_property.offset == 0x1020);
+    property_case(3, 4, 1, 0xc0000002u, 1, &p);
+    CHECK(p.ibt == ELFS_YES && p.shstk == ELFS_NO);
+    property_case(62, 0x6474e553u, 1, 0xc0000001u, 3, &p);
+    CHECK(p.ibt == ELFS_NO && p.shstk == ELFS_NO && p.ev_property.offset == 0x1010);
+    property_case(62, 0x6474e553u, 0, 0, 0, &p);
+    CHECK(p.ibt == ELFS_UNKNOWN && p.shstk == ELFS_UNKNOWN && p.ev_property.source == ELFS_SRC_NONE);
+    property_case(183, 0x6474e553u, 1, 0xc0000000u, 2, &p);
+    CHECK(p.bti == ELFS_NO && p.pac == ELFS_YES && p.ibt == ELFS_NA);
+    property_case(40, 0x6474e553u, 1, 0xc0000000u, 3, &p);
+    CHECK(p.ibt == ELFS_NA && p.bti == ELFS_NA);
+}
+
 int main(void)
 {
     test_hardened_every_layout();
@@ -631,6 +674,7 @@ int main(void)
     test_table_bounds();
     test_path_bound();
     test_gnu_hash_bound();
+    test_property();
     puts("ok");
     return 0;
 }

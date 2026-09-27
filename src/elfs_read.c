@@ -142,11 +142,13 @@ int elfs_phdr(const elfs_elf_t *elf, uint64_t i, elfs_phdr_t *out_phdr)
         out_phdr->offset = elfs_word(elf, at + 8);
         out_phdr->vaddr = elfs_word(elf, at + 16);
         out_phdr->filesz = elfs_word(elf, at + 32);
+        out_phdr->align = elfs_word(elf, at + 48);
     } else {
         out_phdr->offset = elfs_u32(elf, at + 4);
         out_phdr->vaddr = elfs_u32(elf, at + 8);
         out_phdr->filesz = elfs_u32(elf, at + 16);
         out_phdr->flags = elfs_u32(elf, at + 24);
+        out_phdr->align = elfs_u32(elf, at + 28);
     }
     return 1;
 }

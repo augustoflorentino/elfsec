@@ -52,6 +52,7 @@ static void print_profile(const elfs_profile_t *p)
            p->machine, elfs_machine_name(p->machine), p->elf_class, p->big_endian, p->arch_tested, p->judged);
     printf("canary %s\nnx %s\npie %s\nrelro %s\nfortify %s\nstatic %s\nstripped %s\n", tri(p->canary), tri(p->nx),
            tri(p->pie), relro[p->relro % 4], tri(p->fortify), tri(p->static_linked), tri(p->stripped));
+    printf("ibt %s\nshstk %s\nbti %s\npac %s\n", tri(p->ibt), tri(p->shstk), tri(p->bti), tri(p->pac));
     printf("fortified %u\nfortifiable %u\nwarnings 0x%x\nentry 0x%llx\n", p->fortified, p->fortifiable, p->warnings,
            (unsigned long long)p->entry);
     if (p->interp != NULL)
@@ -67,6 +68,7 @@ static void print_profile(const elfs_profile_t *p)
     print_ev("fortify", &p->ev_fortify);
     print_ev("static", &p->ev_static);
     print_ev("stripped", &p->ev_stripped);
+    print_ev("property", &p->ev_property);
 }
 
 static void print_lists(const elfs_elf_t *elf, const elfs_profile_t *p)

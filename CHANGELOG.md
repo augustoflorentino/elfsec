@@ -4,6 +4,14 @@ Each release lists what changed, what updating means for existing code, and ever
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-26
+
+- the profile reports Intel CET (`ibt`, `shstk`) on x86 and BTI and PAC (`bti`, `pac`) on
+  AArch64, read from the GNU property note, with the property as evidence (`ev_property`);
+  without the note they are `ELFS_UNKNOWN`, on other architectures `ELFS_NA`
+- the new fields take space from `reserved`: the size of `elfs_profile_t` does not change, and
+  code built against 0.1.0 keeps working
+
 ## 0.1.0 - 2026-09-26
 
 First release.

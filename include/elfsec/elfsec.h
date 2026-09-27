@@ -148,7 +148,13 @@ typedef struct elfs_profile {
     elfs_evidence_t ev_fortify;
     elfs_evidence_t ev_static;
     elfs_evidence_t ev_stripped;
-    uint32_t reserved[16];
+    uint8_t ibt;
+    uint8_t shstk;
+    uint8_t bti;
+    uint8_t pac;
+    uint32_t reserved1;
+    elfs_evidence_t ev_property;
+    uint32_t reserved[10];
 } elfs_profile_t;
 
 ELFS_SIZE_CHECK(profile, sizeof(elfs_profile_t) == 272 + 4 * sizeof(void *));
