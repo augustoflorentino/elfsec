@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "Cite elfsec this way when it is part of published results."
+type: software
+title: elfsec
+abstract: "C library that reports the hardening of ELF binaries (RELRO, canary, NX, PIE, FORTIFY, CET, BTI) with the record behind each answer"
+authors:
+  - family-names: Florentino
+    given-names: Augusto
+license: MIT
+repository-code: "https://github.com/augustoflorentino/elfsec"
+keywords:
+  - c
+  - c99
+  - library
+  - elf
+  - hardening
+  - security
+  - binary-analysis
+  - firmware
