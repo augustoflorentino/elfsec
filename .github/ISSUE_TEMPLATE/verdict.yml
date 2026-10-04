@@ -1,0 +1,34 @@
+name: Verdict looks wrong
+description: elfsec says yes where checksec or readelf says no, or the other way round
+labels: [verdict]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: elfsec version or commit
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: The file
+      description: Package and path, or a link to it. Attach it if it is small and you may share it.
+      placeholder: Debian bookworm, s390x, /usr/bin/busybox
+    validations:
+      required: true
+  - type: textarea
+    id: elfsec
+    attributes:
+      label: elfsec output
+      description: The line examples/elfsec.c prints, with the lines under it
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: What the other tool says
+      description: checksec output, or `readelf -lWd` and `readelf -n` on the file
+      render: text
+    validations:
+      required: true
