@@ -1,5 +1,10 @@
 # elfsec
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/matrix-dark.svg">
+  <img src="docs/images/matrix-light.svg" alt="elfsec profiles of nine ELF files from eight architectures: RELRO, canary, NX, PIE, FORTIFY, CET or BTI, and risky imports" width="1024">
+</picture>
+
 Reads an ELF image from memory and tells which build and link protections it carries (stack
 protector, non-executable stack, PIE, RELRO, FORTIFY), what it imports, what it needs to run
 (interpreter, `DT_NEEDED`, soname, `RPATH`/`RUNPATH`) and where each answer came from. It is
