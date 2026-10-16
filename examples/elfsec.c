@@ -66,7 +66,8 @@ static void print_details(const elfs_elf_t *elf, const elfs_profile_t *p)
     if (p->ibt != ELFS_NA)
         printf("  CET: IBT %s, SHSTK %s\n", answer(p->ibt, "yes", "no"), answer(p->shstk, "yes", "no"));
     if (p->bti != ELFS_NA)
-        printf("  BTI %s, PAC %s\n", answer(p->bti, "yes", "no"), answer(p->pac, "yes", "no"));
+        printf("  BTI %s, PAC %s, GCS %s\n", answer(p->bti, "yes", "no"), answer(p->pac, "yes", "no"),
+               answer(p->gcs, "yes", "no"));
     for (i = 0; i < p->danger_count && elfs_dangerous(elf, i, &sym) == ELFS_OK; i++)
         printf("  imports %.*s (%s)\n", (int)sym.name_len, sym.name, elfs_danger_name(sym.danger));
     if (p->warnings)

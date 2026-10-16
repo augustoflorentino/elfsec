@@ -650,10 +650,52 @@ static void test_property(void)
     property_case(62, 0x6474e553u, 0, 0, 0, &p);
     CHECK(p.ibt == ELFS_UNKNOWN && p.shstk == ELFS_UNKNOWN && p.ev_property.source == ELFS_SRC_NONE);
     property_case(183, 0x6474e553u, 1, 0xc0000000u, 2, &p);
-    CHECK(p.bti == ELFS_NO && p.pac == ELFS_YES && p.ibt == ELFS_NA);
+    CHECK(p.bti == ELFS_NO && p.pac == ELFS_YES && p.gcs == ELFS_NO && p.ibt == ELFS_NA);
     property_case(40, 0x6474e553u, 1, 0xc0000000u, 3, &p);
     CHECK(p.ibt == ELFS_NA && p.bti == ELFS_NA);
 }
+
+#ifdef ELFS_VECTORS_DIR
+static void vector_case(const char *name, uint8_t a, uint8_t b, uint8_t gcs, int x86)
+{
+    char path[512];
+    unsigned char *d = NULL;
+    elfs_profile_t p;
+    elfs_elf_t *elf = NULL;
+    FILE *f;
+    long size = 0;
+
+    snprintf(path, sizeof(path), "%s/%s", ELFS_VECTORS_DIR, name);
+    f = fopen(path, "rb");
+    CHECK(f != NULL);
+    if (f == NULL)
+        return;
+    if (fseek(f, 0, SEEK_END) == 0 && (size = ftell(f)) > 0 && fseek(f, 0, SEEK_SET) == 0)
+        d = malloc((size_t)size);
+    CHECK(d != NULL && fread(d, 1, (size_t)size, f) == (size_t)size);
+    fclose(f);
+    CHECK(elfs_open(d, (size_t)size, NULL, NULL, NULL, &elf) == ELFS_OK && elfs_profile(elf, &p) == ELFS_OK);
+    CHECK((x86 ? p.ibt : p.bti) == a && (x86 ? p.shstk : p.pac) == b);
+    CHECK((x86 ? p.bti : p.ibt) == ELFS_NA && p.gcs == gcs);
+    elfs_destroy(elf);
+    free(d);
+}
+
+static void test_vectors(void)
+{
+    vector_case("x86_64-cet.so", ELFS_YES, ELFS_YES, ELFS_NA, 1);
+    vector_case("x86_64-ibt.so", ELFS_YES, ELFS_NO, ELFS_NA, 1);
+    vector_case("x86_64-nocet.so", ELFS_NO, ELFS_NO, ELFS_NA, 1);
+    vector_case("i386-cet.so", ELFS_YES, ELFS_YES, ELFS_NA, 1);
+    vector_case("aarch64-bti-pac.so", ELFS_YES, ELFS_YES, ELFS_YES, 0);
+    vector_case("aarch64-bti.so", ELFS_YES, ELFS_NO, ELFS_NO, 0);
+    vector_case("aarch64-none.so", ELFS_UNKNOWN, ELFS_UNKNOWN, ELFS_UNKNOWN, 0);
+}
+#else
+static void test_vectors(void)
+{
+}
+#endif
 
 int main(void)
 {
@@ -675,6 +717,7 @@ int main(void)
     test_path_bound();
     test_gnu_hash_bound();
     test_property();
+    test_vectors();
     puts("ok");
     return 0;
 }

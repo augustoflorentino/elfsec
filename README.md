@@ -6,7 +6,7 @@ protector, non-executable stack, PIE, RELRO, FORTIFY), what it imports, what it 
 checksec as a C library: a scanner, package manager, CI job or firmware tool calls it without
 running a script or a process.
 
-- also reports Intel CET (IBT, shadow stack) and AArch64 BTI and PAC
+- also reports Intel CET (IBT, shadow stack) and AArch64 BTI, PAC and GCS
 - reads ELF32 and ELF64, little and big endian, with or without a section header table (an
   `sstrip`ped binary gives the same answer, from segments and the dynamic table alone)
 - only userland programs and libraries are judged; kernels, kernel modules, boot loaders,
@@ -90,11 +90,13 @@ architecture), the record number and its file offset.
 | `static_linked` | an executable without `PT_INTERP` |
 | `stripped` | no `.symtab` section |
 | `ibt`, `shstk` | x86: the GNU property note sets IBT or SHSTK in `GNU_PROPERTY_X86_FEATURE_1_AND` (Intel CET) |
-| `bti`, `pac` | AArch64: the GNU property note sets BTI or PAC in `GNU_PROPERTY_AARCH64_FEATURE_1_AND` |
+| `bti`, `pac`, `gcs` | AArch64: the GNU property note sets BTI, PAC or GCS (guarded control stack) in `GNU_PROPERTY_AARCH64_FEATURE_1_AND` |
 
 The linker keeps a feature bit only when every object it linked declared it, so a property note
 without the bit is a no; without a property note (`.note.gnu.property`, in `PT_GNU_PROPERTY` or a
-`PT_NOTE`) the answer is unknown. On other architectures these four are `ELFS_NA`.
+`PT_NOTE`) the answer is unknown. On other architectures these are `ELFS_NA`. `tests/vectors` holds
+shared objects built by gcc and clang with and without `-fcf-protection` and `-mbranch-protection`
+(`scripts/vectors.sh`); the tests check each answer against them.
 
 ### Classification
 

@@ -79,7 +79,7 @@ void elfs_judge_property(elfs_elf_t *elf)
     elfs_phdr_t ph;
     int noted = 0;
 
-    p->ibt = p->shstk = p->bti = p->pac = ELFS_NA;
+    p->ibt = p->shstk = p->bti = p->pac = p->gcs = ELFS_NA;
     if (!x86 && p->machine != ELFS_EM_AARCH64)
         return;
     for (i = 0; !noted && elfs_phdr(elf, i, &ph); i++) {
@@ -94,4 +94,6 @@ void elfs_judge_property(elfs_elf_t *elf)
         p->ev_property.offset = at;
     }
     elfs_set_pair(x86 ? &p->ibt : &p->bti, x86 ? &p->shstk : &p->pac, noted, bits);
+    if (!x86)
+        p->gcs = !noted ? ELFS_UNKNOWN : (bits & 4u) ? ELFS_YES : ELFS_NO;
 }

@@ -4,6 +4,15 @@ Each release lists what changed, what updating means for existing code, and ever
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-15
+
+- the profile reports AArch64 GCS (guarded control stack, `gcs`) from the same GNU property note
+  as BTI and PAC; it takes a byte of `reserved1`, the size of `elfs_profile_t` does not change
+- CET and BTI/PAC/GCS are checked against shared objects built by gcc 16 and clang (zig 0.16)
+  with and without `-fcf-protection` and `-mbranch-protection` (`tests/vectors`)
+- benchmarks: `bench/throughput.c` (median 6 us per `/usr/bin` file) and
+  `bench/python_baseline.py`; the fwtriage parity oracle `tests/oracle/fwtriage_oracle.py`
+
 ## 0.3.0 - 2026-09-26
 
 - the profile reports Intel CET (`ibt`, `shstk`) on x86 and BTI and PAC (`bti`, `pac`) on

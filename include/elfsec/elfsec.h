@@ -152,7 +152,8 @@ typedef struct elfs_profile {
     uint8_t shstk;
     uint8_t bti;
     uint8_t pac;
-    uint32_t reserved1;
+    uint8_t gcs;
+    uint8_t reserved1[3];
     elfs_evidence_t ev_property;
     uint32_t reserved[10];
 } elfs_profile_t;

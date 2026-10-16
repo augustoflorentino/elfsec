@@ -207,7 +207,7 @@ static uint32_t elfs_classify(elfs_elf_t *elf, const elfs_segments_t *s, elfs_ev
 static void elfs_not_judged(elfs_profile_t *p)
 {
     p->canary = p->nx = p->pie = p->relro = p->fortify = p->static_linked = p->stripped = ELFS_NA;
-    p->ibt = p->shstk = p->bti = p->pac = ELFS_NA;
+    p->ibt = p->shstk = p->bti = p->pac = p->gcs = ELFS_NA;
     memset(&p->ev_canary, 0, sizeof(p->ev_canary));
     memset(&p->ev_fortify, 0, sizeof(p->ev_fortify));
 }
